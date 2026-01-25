@@ -103,6 +103,11 @@ class Application {
       const modelService = require('./services/modelService')
       await modelService.initialize()
 
+      // 🗺️ 初始化模型注册表服务（统一模型路由）
+      logger.info('🔄 Initializing model registry service...')
+      const modelRegistryService = require('./services/modelRegistryService')
+      await modelRegistryService.initialize()
+
       // 📊 初始化缓存监控
       await this.initializeCacheMonitoring()
 

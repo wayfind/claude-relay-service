@@ -208,6 +208,41 @@ async function handleMessagesRequest(req, res) {
       return await handleAnthropicMessagesToGemini(req, res, { vendor: forcedVendor, baseModel })
     }
 
+    // 🗺️ 统一模型路由：查询 ModelRegistryService 自动路由到正确的池（支持智能 fallback）
+    const modelRegistryService = require('../services/modelRegistryService')
+    const requestedModelForRouting = (req.body.model || '').trim()
+    const routingResult = modelRegistryService.getWithFallback(requestedModelForRouting)
+
+    logger.api(
+      `🗺️ Model routing check: model="${requestedModelForRouting}", found=${!!routingResult}, fallback=${routingResult?.fallback || false}`
+    )
+
+    if (routingResult) {
+      const { entry, model: routedModel, fallback, originalModel, tier } = routingResult
+      const primaryPool = entry.pools[0]?.pool
+
+      if (fallback) {
+        logger.api(
+          `🔄 Model fallback activated: "${originalModel}" → "${routedModel}" (tier: ${tier}, pool: ${primaryPool})`
+        )
+        // 设置响应头告知客户端发生了 fallback
+        res.setHeader('X-Model-Fallback', 'true')
+        res.setHeader('X-Model-Original', originalModel)
+        res.setHeader('X-Model-Actual', routedModel)
+      } else {
+        logger.api(`🗺️ Model "${requestedModelForRouting}" found in pool: ${primaryPool}`)
+      }
+
+      // 如果模型在 Antigravity 池中，自动路由到 Gemini 服务
+      if (primaryPool === 'antigravity') {
+        logger.api(`🗺️ Auto-routing model "${routedModel}" to Antigravity pool`)
+        return await handleAnthropicMessagesToGemini(req, res, {
+          vendor: 'antigravity',
+          baseModel: routedModel
+        })
+      }
+    }
+
     // 检查是否为流式请求
     const isStream = req.body.stream === true
 
@@ -1400,6 +1435,27 @@ router.get('/v1/key-info', authenticateApiKey, async (req, res) => {
     logger.error('❌ Key info error:', error)
     res.status(500).json({
       error: 'Failed to get key info',
+      message: error.message
+    })
+  }
+})
+
+// 🗺️ 模型注册表状态（用于调试统一模型路由）- 匿名可访问
+router.get('/v1/model-registry', async (req, res) => {
+  try {
+    const modelRegistryService = require('../services/modelRegistryService')
+    const status = modelRegistryService.getStatus()
+    const models = modelRegistryService.getAllModels()
+
+    res.json({
+      status,
+      models,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    logger.error('❌ Model registry error:', error)
+    res.status(500).json({
+      error: 'Failed to get model registry',
       message: error.message
     })
   }
