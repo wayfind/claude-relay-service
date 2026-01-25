@@ -1440,27 +1440,6 @@ router.get('/v1/key-info', authenticateApiKey, async (req, res) => {
   }
 })
 
-// 🗺️ 模型注册表状态（用于调试统一模型路由）- 匿名可访问
-router.get('/v1/model-registry', async (req, res) => {
-  try {
-    const modelRegistryService = require('../services/modelRegistryService')
-    const status = modelRegistryService.getStatus()
-    const models = modelRegistryService.getAllModels()
-
-    res.json({
-      status,
-      models,
-      timestamp: new Date().toISOString()
-    })
-  } catch (error) {
-    logger.error('❌ Model registry error:', error)
-    res.status(500).json({
-      error: 'Failed to get model registry',
-      message: error.message
-    })
-  }
-})
-
 // 📈 使用统计端点 - /api/v1/usage
 router.get('/v1/usage', authenticateApiKey, async (req, res) => {
   try {

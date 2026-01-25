@@ -408,4 +408,57 @@ router.post('/claude-code-version/clear', authenticateAdmin, async (req, res) =>
   }
 })
 
+// ==================== 模型注册表 ====================
+
+// 📋 获取模型注册表状态
+router.get('/model-registry', authenticateAdmin, async (req, res) => {
+  try {
+    const modelRegistryService = require('../../services/modelRegistryService')
+    const status = modelRegistryService.getStatus()
+    const models = modelRegistryService.getAllModels()
+
+    res.json({
+      success: true,
+      status,
+      models,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    logger.error('❌ Model registry error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get model registry',
+      message: error.message
+    })
+  }
+})
+
+// 🔄 手动刷新模型注册表
+router.post('/model-registry/refresh', authenticateAdmin, async (req, res) => {
+  try {
+    const modelRegistryService = require('../../services/modelRegistryService')
+    await modelRegistryService.refreshAll()
+
+    const status = modelRegistryService.getStatus()
+    const models = modelRegistryService.getAllModels()
+
+    logger.info('🔄 Model registry manually refreshed by admin')
+
+    res.json({
+      success: true,
+      message: 'Model registry refreshed successfully',
+      status,
+      models,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    logger.error('❌ Model registry refresh error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to refresh model registry',
+      message: error.message
+    })
+  }
+})
+
 module.exports = router
