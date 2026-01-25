@@ -34,6 +34,36 @@ class ModelRegistryService {
     this.initialized = false
     this.lastRefreshTime = null
     this.lastRefreshError = null
+
+    // 防抖刷新：避免短时间内多次刷新（如批量导入账户）
+    this._pendingRefresh = null
+    this._refreshDebounceMs = 2000 // 2秒防抖
+  }
+
+  /**
+   * 请求刷新（防抖）
+   * 多次调用会合并为一次刷新，避免刷新风暴
+   */
+  scheduleRefresh() {
+    if (this._pendingRefresh) {
+      return this._pendingRefresh
+    }
+
+    this._pendingRefresh = new Promise((resolve) => {
+      setTimeout(async () => {
+        try {
+          await this.refreshAll()
+          logger.info('🔄 ModelRegistryService refreshed (debounced)')
+        } catch (err) {
+          logger.warn('Failed to refresh ModelRegistryService', { error: err.message })
+        } finally {
+          this._pendingRefresh = null
+          resolve()
+        }
+      }, this._refreshDebounceMs)
+    })
+
+    return this._pendingRefresh
   }
 
   /**
@@ -206,36 +236,36 @@ class ModelRegistryService {
   }
 
   /**
-   * 加载 Claude 官方模型
+   * 加载 Claude 官方模型（包括 OAuth 和 Console 账户）
    */
   async _loadClaudeOfficialModels(registry) {
+    // Claude 官方支持的模型列表（兜底）
+    const defaultClaudeModels = [
+      'claude-opus-4-5-20251101',
+      'claude-sonnet-4-5-20250929',
+      'claude-haiku-4-5-20251001',
+      'claude-opus-4-1-20250805',
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
+      'claude-3-7-sonnet-20250219',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+      'claude-3-opus-20240229',
+      'claude-3-haiku-20240307'
+    ]
+
+    // 1. 加载 Claude OAuth 账户（使用固定列表）
     try {
       const claudeAccountService = require('./claudeAccountService')
       const accounts = await claudeAccountService.getAllAccounts()
-
-      // Claude 官方支持的模型列表（固定）
-      const claudeModels = [
-        'claude-opus-4-5-20251101',
-        'claude-sonnet-4-5-20250929',
-        'claude-haiku-4-5-20251001',
-        'claude-opus-4-1-20250805',
-        'claude-sonnet-4-20250514',
-        'claude-opus-4-20250514',
-        'claude-3-7-sonnet-20250219',
-        'claude-3-5-sonnet-20241022',
-        'claude-3-5-haiku-20241022',
-        'claude-3-opus-20240229',
-        'claude-3-haiku-20240307'
-      ]
 
       for (const account of accounts) {
         if (account.status !== 'active') {
           continue
         }
 
-        // 根据订阅级别过滤模型
         const supportedModels = this._filterModelsBySubscription(
-          claudeModels,
+          defaultClaudeModels,
           account.subscriptionInfo
         )
 
@@ -249,7 +279,86 @@ class ModelRegistryService {
         }
       }
     } catch (err) {
-      logger.error('Failed to load Claude official models', { error: err.message })
+      logger.error('Failed to load Claude OAuth models', { error: err.message })
+    }
+
+    // 2. 加载 Claude Console 账户（动态模型发现）
+    try {
+      const claudeConsoleAccountService = require('./claudeConsoleAccountService')
+      const accounts = await claudeConsoleAccountService.getAllAccounts()
+
+      for (const account of accounts) {
+        if (account.status !== 'active') {
+          continue
+        }
+
+        // 动态获取模型列表，失败时使用默认列表
+        const models = await this._fetchClaudeConsoleModels(account, defaultClaudeModels)
+
+        for (const modelId of models) {
+          this._registerModel(registry, modelId, {
+            pool: 'claude-console',
+            accountId: account.id,
+            priority: account.priority || 50,
+            defaultPermission: 'claude'
+          })
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to load Claude Console models', { error: err.message })
+    }
+  }
+
+  /**
+   * 动态获取 Claude Console 账户支持的模型列表
+   */
+  async _fetchClaudeConsoleModels(account, defaultModels) {
+    try {
+      const claudeConsoleAccountService = require('./claudeConsoleAccountService')
+      const accountData = await claudeConsoleAccountService.getAccount(account.id)
+
+      if (!accountData || !accountData.apiKey) {
+        logger.warn(`Claude Console account ${account.id} has no apiKey`)
+        return defaultModels
+      }
+
+      // 构建 API URL：优先使用账户配置的 apiUrl，否则使用默认值
+      const baseUrl = accountData.apiUrl || 'https://api.anthropic.com'
+      const modelsUrl = `${baseUrl.replace(/\/$/, '')}/v1/models`
+
+      const axios = require('axios')
+      const axiosConfig = {
+        headers: {
+          'x-api-key': accountData.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        timeout: 10000
+      }
+
+      // 添加代理支持
+      if (accountData.proxy) {
+        const ProxyHelper = require('../utils/proxyHelper')
+        const agent = ProxyHelper.createProxyAgent(accountData.proxy)
+        if (agent) {
+          axiosConfig.httpsAgent = agent
+          axiosConfig.httpAgent = agent
+        }
+      }
+
+      const response = await axios.get(modelsUrl, axiosConfig)
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        const models = response.data.data.map((m) => m.id).filter(Boolean)
+        logger.debug(`Claude Console account ${account.id} supports ${models.length} models`)
+        return models.length > 0 ? models : defaultModels
+      }
+
+      return defaultModels
+    } catch (err) {
+      logger.warn(`Failed to fetch models for Claude Console account ${account.id}`, {
+        error: err.message
+      })
+      return defaultModels
     }
   }
 

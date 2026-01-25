@@ -36,6 +36,16 @@ class ClaudeConsoleAccountService {
     )
   }
 
+  /**
+   * 触发 ModelRegistryService 刷新（异步，不阻塞，防抖）
+   */
+  _triggerModelRegistryRefresh() {
+    // 使用 scheduleRefresh 防抖，避免批量导入时的刷新风暴
+    // 不等待结果，让调用方立即返回
+    const modelRegistryService = require('./modelRegistryService')
+    modelRegistryService.scheduleRefresh()
+  }
+
   _getBlockedHandlingMinutes() {
     const raw = process.env.CLAUDE_CONSOLE_BLOCKED_HANDLING_MINUTES
     if (raw === undefined || raw === null || raw === '') {
@@ -137,6 +147,9 @@ class ClaudeConsoleAccountService {
     }
 
     logger.success(`🏢 Created Claude Console account: ${name} (${accountId})`)
+
+    // 触发 ModelRegistryService 刷新，发现新账户的模型
+    this._triggerModelRegistryRefresh()
 
     return {
       id: accountId,
