@@ -51,49 +51,8 @@
         </button>
       </div>
 
-      <!-- 配额（如适用） -->
-      <div v-if="quotaInfo && isAntigravityQuota" class="space-y-2">
-        <div class="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
-          <span>剩余</span>
-          <span>{{ formatQuotaNumber(quotaInfo.remaining) }}</span>
-        </div>
-
-        <div class="space-y-1">
-          <div
-            v-for="row in antigravityRows"
-            :key="row.category"
-            class="flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1.5 dark:bg-gray-700/60"
-          >
-            <span class="h-2 w-2 shrink-0 rounded-full" :class="row.dotClass"></span>
-            <span
-              class="min-w-0 flex-1 truncate text-xs font-medium text-gray-800 dark:text-gray-100"
-              :title="row.category"
-            >
-              {{ row.category }}
-            </span>
-
-            <div class="flex w-[94px] flex-col gap-0.5">
-              <div class="h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-600">
-                <div
-                  class="h-1.5 rounded-full transition-all"
-                  :class="row.barClass"
-                  :style="{ width: `${row.remainingPercent ?? 0}%` }"
-                ></div>
-              </div>
-              <div
-                class="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-300"
-              >
-                <span>{{ row.remainingText }}</span>
-                <span v-if="row.resetAt" class="text-gray-400 dark:text-gray-400">{{
-                  formatResetTime(row.resetAt)
-                }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="quotaInfo" class="space-y-1">
+      <!-- 配额（普通类型，antigravity 类型在会话窗口列显示） -->
+      <div v-if="quotaInfo && !isAntigravityQuota" class="space-y-1">
         <div class="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
           <span>已用: {{ formatQuotaNumber(quotaInfo.used) }}</span>
           <span>剩余: {{ formatQuotaNumber(quotaInfo.remaining) }}</span>
@@ -182,39 +141,6 @@ const quotaInfo = computed(() => {
 
 const isAntigravityQuota = computed(() => {
   return balanceData.value?.quota?.type === 'antigravity'
-})
-
-const antigravityRows = computed(() => {
-  if (!isAntigravityQuota.value) return []
-
-  const buckets = balanceData.value?.quota?.buckets
-  const list = Array.isArray(buckets) ? buckets : []
-  const map = new Map(list.map((b) => [b?.category, b]))
-
-  const order = ['Gemini Pro', 'Claude', 'Gemini Flash', 'Gemini Image']
-  const styles = {
-    'Gemini Pro': { dotClass: 'bg-blue-500', barClass: 'bg-blue-500 dark:bg-blue-400' },
-    Claude: { dotClass: 'bg-purple-500', barClass: 'bg-purple-500 dark:bg-purple-400' },
-    'Gemini Flash': { dotClass: 'bg-cyan-500', barClass: 'bg-cyan-500 dark:bg-cyan-400' },
-    'Gemini Image': { dotClass: 'bg-emerald-500', barClass: 'bg-emerald-500 dark:bg-emerald-400' }
-  }
-
-  return order.map((category) => {
-    const raw = map.get(category) || null
-    const remaining = raw?.remaining
-    const remainingPercent = Number.isFinite(Number(remaining))
-      ? Math.max(0, Math.min(100, Number(remaining)))
-      : null
-
-    return {
-      category,
-      remainingPercent,
-      remainingText: remainingPercent === null ? '—' : `${Math.round(remainingPercent)}%`,
-      resetAt: raw?.resetAt || null,
-      dotClass: styles[category]?.dotClass || 'bg-gray-400',
-      barClass: styles[category]?.barClass || 'bg-gray-400'
-    }
-  })
 })
 
 const quotaBarClass = computed(() => {

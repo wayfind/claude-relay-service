@@ -1163,6 +1163,52 @@
                       <span class="text-xs">N/A</span>
                     </div>
                   </div>
+                  <!-- Gemini OAuth (antigravity) 账户：显示配额进度 -->
+                  <div
+                    v-else-if="
+                      account.platform === 'gemini' &&
+                      account.oauthProvider === 'antigravity' &&
+                      account.balanceInfo?.quota?.buckets
+                    "
+                    class="space-y-2"
+                  >
+                    <div
+                      v-for="row in getAntigravityRows(account.balanceInfo)"
+                      :key="row.category"
+                      class="rounded-lg bg-gray-50 p-2 dark:bg-gray-700/70"
+                    >
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="inline-flex min-w-[50px] justify-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                          :class="row.badgeClass"
+                        >
+                          {{ row.shortLabel }}
+                        </span>
+                        <div class="flex-1">
+                          <div class="flex items-center gap-2">
+                            <div class="h-2 flex-1 rounded-full bg-gray-200 dark:bg-gray-600">
+                              <div
+                                class="h-2 rounded-full transition-all duration-300"
+                                :class="row.barClass"
+                                :style="{ width: `${row.remainingPercent ?? 0}%` }"
+                              />
+                            </div>
+                            <span
+                              class="w-12 text-right text-xs font-semibold text-gray-800 dark:text-gray-100"
+                            >
+                              {{ row.remainingText }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        v-if="row.resetAt"
+                        class="mt-1 text-[11px] text-gray-500 dark:text-gray-400"
+                      >
+                        重置剩余 {{ formatAntigravityResetTime(row.resetAt) }}
+                      </div>
+                    </div>
+                  </div>
                   <div v-else class="text-sm text-gray-400">
                     <span class="text-xs">N/A</span>
                   </div>
@@ -1752,6 +1798,53 @@
                 </div>
               </div>
               <div v-if="!account.codexUsage" class="text-xs text-gray-400">暂无统计</div>
+            </div>
+            <!-- Gemini OAuth (antigravity) 账户：显示配额进度 -->
+            <div
+              v-else-if="
+                account.platform === 'gemini' &&
+                account.oauthProvider === 'antigravity' &&
+                account.balanceInfo?.quota?.buckets
+              "
+              class="space-y-2"
+            >
+              <span class="font-medium text-gray-600 dark:text-gray-300">配额窗口</span>
+              <div
+                v-for="row in getAntigravityRows(account.balanceInfo)"
+                :key="row.category"
+                class="rounded-lg bg-gray-50 p-2 dark:bg-gray-700"
+              >
+                <div class="flex items-center gap-2">
+                  <span
+                    class="inline-flex min-w-[50px] justify-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    :class="row.badgeClass"
+                  >
+                    {{ row.shortLabel }}
+                  </span>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <div class="h-2 flex-1 rounded-full bg-gray-200 dark:bg-gray-600">
+                        <div
+                          class="h-2 rounded-full transition-all duration-300"
+                          :class="row.barClass"
+                          :style="{ width: `${row.remainingPercent ?? 0}%` }"
+                        />
+                      </div>
+                      <span
+                        class="w-12 text-right text-xs font-semibold text-gray-800 dark:text-gray-100"
+                      >
+                        {{ row.remainingText }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-if="row.resetAt"
+                  class="mt-1 text-[11px] text-gray-500 dark:text-gray-400"
+                >
+                  重置剩余 {{ formatAntigravityResetTime(row.resetAt) }}
+                </div>
+              </div>
             </div>
 
             <!-- 最后使用时间 -->
@@ -4492,6 +4585,68 @@ const getCodexWindowLabel = (type) => {
     return '周限'
   }
   return '5h'
+}
+
+// Gemini OAuth (antigravity) 配额行数据
+const getAntigravityRows = (balanceInfo) => {
+  if (!balanceInfo?.quota?.buckets) return []
+
+  const buckets = balanceInfo.quota.buckets
+  const list = Array.isArray(buckets) ? buckets : []
+  const map = new Map(list.map((b) => [b?.category, b]))
+
+  const order = ['Gemini Pro', 'Claude', 'Gemini Flash', 'Gemini Image']
+  const styles = {
+    'Gemini Pro': {
+      shortLabel: 'Pro',
+      badgeClass: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300',
+      barClass: 'bg-blue-500 dark:bg-blue-400'
+    },
+    Claude: {
+      shortLabel: 'Claude',
+      badgeClass: 'bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300',
+      barClass: 'bg-purple-500 dark:bg-purple-400'
+    },
+    'Gemini Flash': {
+      shortLabel: 'Flash',
+      badgeClass: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-300',
+      barClass: 'bg-cyan-500 dark:bg-cyan-400'
+    },
+    'Gemini Image': {
+      shortLabel: 'Image',
+      badgeClass: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300',
+      barClass: 'bg-emerald-500 dark:bg-emerald-400'
+    }
+  }
+
+  return order.map((category) => {
+    const raw = map.get(category) || null
+    const remaining = raw?.remaining
+    const remainingPercent = Number.isFinite(Number(remaining))
+      ? Math.max(0, Math.min(100, Number(remaining)))
+      : null
+
+    return {
+      category,
+      shortLabel: styles[category]?.shortLabel || category,
+      remainingPercent,
+      remainingText: remainingPercent === null ? '—' : `${Math.round(remainingPercent)}%`,
+      resetAt: raw?.resetAt || null,
+      badgeClass: styles[category]?.badgeClass || 'bg-gray-100 text-gray-600',
+      barClass: styles[category]?.barClass || 'bg-gray-400'
+    }
+  })
+}
+
+// 格式化 Gemini OAuth 配额重置时间（复用 formatRateLimitTime）
+const formatAntigravityResetTime = (isoString) => {
+  const date = new Date(isoString)
+  const now = new Date()
+  const diff = date.getTime() - now.getTime()
+  if (!Number.isFinite(diff)) return '未知'
+  if (diff < 0) return '已过期'
+  const minutes = Math.floor(diff / (1000 * 60))
+  return formatRateLimitTime(minutes) || '即将重置'
 }
 
 // 格式化剩余时间
