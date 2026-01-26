@@ -32,7 +32,7 @@ const OAUTH_PROVIDERS = {
     clientId:
       process.env.GEMINI_OAUTH_CLIENT_ID ||
       '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com',
-    clientSecret: process.env.GEMINI_OAUTH_CLIENT_SECRET || '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',
+    clientSecret: process.env.GEMINI_OAUTH_CLIENT_SECRET || '',
     scopes: ['https://www.googleapis.com/auth/cloud-platform']
   },
   [OAUTH_PROVIDER_ANTIGRAVITY]: {
@@ -41,7 +41,7 @@ const OAUTH_PROVIDERS = {
       process.env.ANTIGRAVITY_OAUTH_CLIENT_ID ||
       '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com',
     clientSecret:
-      process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || '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',
+      process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || '',
     scopes: [
       'https://www.googleapis.com/auth/cloud-platform',
       'https://www.googleapis.com/auth/userinfo.email',
