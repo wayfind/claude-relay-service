@@ -40,8 +40,7 @@ const OAUTH_PROVIDERS = {
     clientId:
       process.env.ANTIGRAVITY_OAUTH_CLIENT_ID ||
       '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com',
-    clientSecret:
-      process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || '',
+    clientSecret: process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || '',
     scopes: [
       'https://www.googleapis.com/auth/cloud-platform',
       'https://www.googleapis.com/auth/userinfo.email',

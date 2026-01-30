@@ -1838,10 +1838,7 @@
                     </div>
                   </div>
                 </div>
-                <div
-                  v-if="row.resetAt"
-                  class="mt-1 text-[11px] text-gray-500 dark:text-gray-400"
-                >
+                <div v-if="row.resetAt" class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
                   重置剩余 {{ formatAntigravityResetTime(row.resetAt) }}
                 </div>
               </div>
